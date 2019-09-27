@@ -207,9 +207,10 @@ ISR ( TIMER2_OVF_vect ) {
 
 // Вход во внешнее прерывание
 ISR (INT0_vect) {
+	// Как только пришел первый импульс - начианем подсчет
 	T2_START;
 	if (NEC_SCLK > NEC_MIN_CLK) {
-		// Тут определяем стартовое сообщение (преамбулу)
+		// Определяем стартовое сообщение (преамбулу)
 		if (NEC_SCLK >= NEC_MIN_HEADER_MESSAGE_CLK && NEC_SCLK < NEC_MAX_HEADER_MESSAGE_CLK) {
 			NEC_START_FLAG = 1;
 			NEC_REPEAT_FLAG = 0;
@@ -285,6 +286,7 @@ ISR (INT0_vect) {
 }
 
 // Отображение цифр на дисплее
+// Особо говорить тут нечего, тупо разнос числе на разряды. скука смертная
 int print_display(int hours, int mins, int bl, int hsbl, int mbl) {
 	if (!hsbl) {
 		if (hours == 0) {
@@ -324,6 +326,7 @@ int print_display(int hours, int mins, int bl, int hsbl, int mbl) {
 	return 1;
 }
 
+// Чтение данных из микросхемы
 void DS1307_ReadDateTime( void ) {
 	unsigned char temp;
 
@@ -357,7 +360,7 @@ void DS1307_WriteDateTime() {
 	DS1307Write(0x03, tmp);
 }
 
-// Внешнее прерывание с DS1307 (SQW)
+// Вход во внешнее прерывание. DS1307 (SQW)
 ISR ( INT1_vect ) {
 	sqw_flag = 1;
 }
@@ -365,7 +368,7 @@ ISR ( INT1_vect ) {
 
 // Код основной программы
 int main(void) {
-	asm("CLI");
+	asm("CLI"); // Запрещаем прерывания
 	_delay_ms(100);
 	
 	// Инициализация таймера/счестчика 2 для динамической индикации
@@ -390,7 +393,8 @@ int main(void) {
 
 	// Инициализация портов ввода-вывода SPI
 	_74hc595_SPI_Init();
-	asm("SEI");
+	
+	asm("SEI"); // Разрешаем прерывания
 
 	DS1307Init(); // Инициализация DS1307
 	DS1307Write(0x07, 0b10010000); // Настраиваем выход SQW на частоту 1Hz
@@ -602,10 +606,10 @@ int main(void) {
 			// Мигание настраиваемых значений
 			setInterval(450, tmr0, {
 				blink_flag ^= 1;
-				if (submenu_level == 0) {
+				if (submenu_level == 0) { // Настариваем часы
 					print_display(s_hour, s_min, 0, blink_flag, 0);
 				}
-				if (submenu_level == 1) { 
+				if (submenu_level == 1) { // Настариваем минуты
 					print_display(s_hour, s_min, 0, 0, blink_flag);
 				}
 			});
