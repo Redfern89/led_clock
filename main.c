@@ -31,15 +31,15 @@
 #define T2_START { TCCR2 = (1 << CS20) | (1 << CS21) | (0 << CS22); }
 #define T2_STOP { TCCR2 = 0x00; }
 
-unsigned char NC = 0xFF;
-volatile unsigned char digits[11] = { 0xfc, 0x60, 0xda, 0xf2, 0x66, 0xb6, 0xbe, 0xe0, 0xfe, 0xf6 };
-volatile uint16_t groups[12] = { 0x8000, 0x4000, 0x2000, 0x1000, 0x800, 0x400, 0x200, 0x100, 0x80, 0x40, 0x20, 0x10 };
-volatile unsigned char display_data[12]  = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-const int max_groups  = 12;
-volatile unsigned int display_pos = 0;
-volatile unsigned int tmp = 0;
-volatile unsigned long long int millis = 0;
-volatile int sqw_flag = 0;
+unsigned char NC = 0xFF; // Отсутствующая преамбула
+volatile unsigned char digits[11] = { 0xfc, 0x60, 0xda, 0xf2, 0x66, 0xb6, 0xbe, 0xe0, 0xfe, 0xf6 }; // Коды цифр на индикаторе
+volatile uint16_t groups[12] = { 0x8000, 0x4000, 0x2000, 0x1000, 0x800, 0x400, 0x200, 0x100, 0x80, 0x40, 0x20, 0x10 }; // Группы светодиодов
+volatile unsigned char display_data[12]  = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }; // Массив индикации
+const int max_groups  = 12; // Минимальное колличество групп
+volatile unsigned int display_pos = 0; // Текущее положение на дисплее
+volatile unsigned int tmp = 0; // Пока ненадо
+volatile unsigned long long int millis = 0; // Колличество миллисекунд с момента запуска
+volatile int sqw_flag = 0; // Флаг прохождения одной секунды
 
 // Таймер без delay
 #define setInterval(n, tmr, code) { if ((millis - tmr) >= n) { tmr = millis; code; }}
@@ -56,7 +56,7 @@ unsigned long long int tmr3 = 0;
 const int NEC_MIN_CLK                   = 5;        // Минимальное значение, при котором следует начинать захват
 volatile int NEC_REPEAT_FLAG            = 0;
 volatile int NEC_START_FLAG             = 0;
-volatile int NEC_IR_DONE                = 0;
+volatile int NEC_IR_DONE                = 0;		// Флаг входящей команда с пульта
 volatile unsigned long int NEC_SCLK     = 0;        // Тактовые синхроимпульсы (64 мкс)
 volatile unsigned long int NEC_RECV_CNT = 0;        // Кол-во принятых битов
 const static int NEC_MIN_HEADER_MESSAGE_CLK       = 190;      // Преамбула+пауза (минимальное время)
@@ -67,8 +67,8 @@ const int NEC_MIN_ONE_BIT_CLK = 30;
 const int NEC_MAX_ONE_BIT_CLK = 40;
 const int NEC_MIN_NUL_BIT_CLK = 15;
 const int NEC_MAX_NUL_BIT_CLK = 25;
-const static int NEC_MAX_RESET_OVF      = 1200;
-const static int NEC_PACKET_LENGTH      = 32;
+const static int NEC_MAX_RESET_OVF      = 1200; // Время сброса состояния приема
+const static int NEC_PACKET_LENGTH      = 32; // Размер сообщения (без преамбулы)
 volatile unsigned char addr1 = 0x00;	// Адрес
 volatile unsigned char addr2 = 0x00;	// Инверсия адреса
 volatile unsigned char cmd1 = 0x00;		// Команда
@@ -372,14 +372,17 @@ int main(void) {
 	TIMSK |= (1 << TOIE0);
 	TCNT1 = 0;
 	
+	// Инициализация таймера/счестчика 1 для подсчета миллисекунд
 	TCCR1B |= (0 << CS12) | (1 << CS11) | (1 << CS10);
 	TIMSK |= (1 << TOIE1);
 	TCNT1 = 0xFF06;
 	
+	// Инициализация таймера/счестчика 0 для подсчета времени во внешнем прерывании
 	TCCR2 = (1 << CS20) | (1 << CS21) | (0 << CS22);
 	TIMSK |= (1 << TOIE2);
 	TCNT2 = 0xF0;
 	
+	// Инициализация внешнего прерывание INT0, INT1
 	MCUCR |= (1 << ISC01) | (0 << ISC00);
 	MCUCR |= (1 << ISC11) | (0 << ISC10);
 	GICR |= (1 << INT0) | (1 << INT1);
@@ -408,8 +411,8 @@ int main(void) {
 		0b1010101010101010101010101010101010101010101010101010101010101010
 	};
 	unsigned long long int exit_demo = 0b0111111111011111111001111111111000111111110001111111110000011111;
-	int demo_interval = 0;
-	int demo_flag = 0;
+	int demo_interval = 0;	// Текущий проход в демо
+	int demo_flag = 0; // Флаг входа в демо
 	//int demo_count = 0;
 	
 	while (1) {
@@ -426,6 +429,7 @@ int main(void) {
 		// Читаем время из микросхемы
 		DS1307_ReadDateTime();
 		
+		// Всякая муть с демо
 		if (demo_flag) {
 			setInterval(100, tmr1, {
 				demo_interval++;
@@ -575,7 +579,8 @@ int main(void) {
 			}
 
 		}
-
+		
+		// Если м в меню
 		if (menu_flag) {
 			if (enter_menu_flag) {
 				enter_menu_flag = 0;
@@ -585,6 +590,7 @@ int main(void) {
 					s_min = DateTime.Min;
 				}
 			}
+			// Мигание настраиваемых значений
 			setInterval(450, tmr0, {
 				blink_flag ^= 1;
 				if (submenu_level == 0) {
@@ -597,6 +603,7 @@ int main(void) {
 
 		} else {
 			if (!demo_flag) {
+				// Тупо отображаем время
 				print_display(DateTime.Hour, DateTime.Min, (DateTime.Sec % 2), 0, 0);
 			}
 		}
