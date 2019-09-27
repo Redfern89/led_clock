@@ -466,6 +466,7 @@ int main(void) {
 		}
 		
 		// Вся суть анимации
+		// Как я с этим заебался, пиздец. ...
 		if (sqw_flag && !menu_flag && !exit_menu_flag && !demo_flag) { // Если прошла секунда
 			interval = map(DateTime.Sec, 0, 59, 7, 30);
 			setInterval(interval, tmr0, { // Устанавливаем интервал прохода
