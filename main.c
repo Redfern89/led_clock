@@ -204,7 +204,7 @@ ISR ( TIMER2_OVF_vect ) {
 	}
 }
 
-// Внешнее прерывание от IRDA-приемника
+// Вход во внешнее прерывание
 ISR (INT0_vect) {
 	T2_START;
 	if (NEC_SCLK > NEC_MIN_CLK) {
